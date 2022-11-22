@@ -139,7 +139,7 @@ module Radiator
         trx_builder.put({type => op})
       end
       
-      network_api.broadcast_transaction_synchronous(trx_builder.transaction)
+      network_api.broadcast_transaction(trx_builder.transaction)
     ensure
       shutdown
     end
@@ -189,9 +189,9 @@ module Radiator
   private
     def broadcast_payload(payload)
       if use_condenser_namespace?
-        @api.broadcast_transaction_synchronous(payload)
+        @api.broadcast_transaction(payload)
       else
-        @network_broadcast_api.broadcast_transaction_synchronous(trx: payload)
+        @network_broadcast_api.broadcast_transaction(trx: payload)
       end
     end
     
