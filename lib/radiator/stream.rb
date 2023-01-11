@@ -358,8 +358,8 @@ module Radiator
 
             start = head_block + 1
             sleep block_production / range.size
-            puts "sleep_over #{block_production}"
           end
+            puts "sleep_over #{block_production}"
           end
         rescue StreamError; raise
         # rescue => e
