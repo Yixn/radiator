@@ -502,6 +502,7 @@ module Radiator
       @timeout *= 2
       reset_timeout if @timeout > MAX_TIMEOUT
       sleep @timeout || INITIAL_TIMEOUT
+      puts "timeout #{@timeout}"
       @timeout
     end
 
