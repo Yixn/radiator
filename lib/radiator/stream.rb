@@ -24,7 +24,7 @@ module Radiator
     BLOCK_PRODUCTION = 3
 
     # @private
-    MAX_TIMEOUT = 80
+    MAX_TIMEOUT = 0.1
 
     # @private
     MAX_BLOCKS_PER_NODE = 10000
