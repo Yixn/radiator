@@ -130,7 +130,7 @@ module Radiator
     # @param options [::Hash] additional options
     # @option options [Boollean] :include_virtual Also stream virtual options.  Setting this true will impact performance.  Default: false.
     # @return [::Hash]
-    def operations(type = nil, start = nil, mode = :irreversible, options = {include_virtual: false}, &block)
+    def operations(type = nil, start = nil, mode = :irreversible, options = { include_virtual: false }, &block)
       type = [type].flatten.compact.map(&:to_sym)
       include_virtual = !!options[:include_virtual]
 
@@ -149,33 +149,36 @@ module Radiator
           if type.size == 1 && type.first == t
             op
           elsif type.none? || type.include?(t)
-            {t => op}
+            { t => op }
           end
         end.compact
 
         if include_virtual && !virtual_ops_collected
-          catch :pop_vops do; begin
-            api.get_ops_in_block(block_number, true) do |vops, error|
-              if !!error
-                standby "Node responded with: #{error.message || 'unknown error'}, retrying ...", {
-                  error: error,
-                  and: {throw: :pop_vops}
-                }
-              end
+          catch :pop_vops do
+            ;
+            begin
+              api.get_ops_in_block(block_number, true) do |vops, error|
+                if !!error
+                  standby "Node responded with: #{error.message || 'unknown error'}, retrying ...", {
+                    error: error,
+                    and: { throw: :pop_vops }
+                  }
+                end
 
-              vops.each do |vtx|
-                next unless defined? vtx.op
+                vops.each do |vtx|
+                  next unless defined? vtx.op
 
-                t = vtx.op.first.to_sym
-                op = vtx.op.last
-                if type.size == 1 && type.first == t
-                  ops << op
-                elsif type.none? || type.include?(t)
-                  ops << {t => op}
+                  t = vtx.op.first.to_sym
+                  op = vtx.op.last
+                  if type.size == 1 && type.first == t
+                    ops << op
+                  elsif type.none? || type.include?(t)
+                    ops << { t => op }
+                  end
                 end
               end
-            end
-          end; end
+            end;
+          end
 
           virtual_ops_collected = true
         end
@@ -210,8 +213,8 @@ module Radiator
 
         _transactions.each_with_index do |transaction, index|
           trx_id = if !!b['transaction_ids']
-            b['transaction_ids'][index]
-          end
+                     b['transaction_ids'][index]
+                   end
 
           yield transaction, trx_id, block_number, api
         end
@@ -258,115 +261,123 @@ module Radiator
       loop do
         break if stop?
 
-        catch :sequence do; begin
-          head_block = database_api.get_dynamic_global_properties do |properties, error|
-            if !!error
-              standby "Node responded with: #{error.message || 'unknown error'}, retrying ...", {
-                error: error,
-                and: {throw: :sequence}
-              }
-            end
-
-            break if stop?
-
-            if properties.nil? || properties.head_block_number.nil?
-              # This can happen if a reverse proxy is acting up.
-              standby "A Bad block sequence after height: #{latest_block_number}", {
-                and: {throw: :sequence}
-              }
-            end
-
-            case mode.to_sym
-            when :head then properties.head_block_number
-            when :irreversible then properties.last_irreversible_block_num
-            else; raise StreamError, '"mode" has to be "head" or "irreversible"'
-            end
-          end
-
-          if head_block == latest_block_number
-            # This can happen when there's a delay in block production.
-
-            if current_timeout > block_production * 6 * block_production_mult
-              standby "Stream has stalled severely ...", {
-                and: {backoff: api, throw: :sequence}
-              }
-            elsif current_timeout > block_production * 3 * block_production_mult
-              warning "Stream has stalled ..."
-            end
-
-          end
-
-          reset_timeout
-          start ||= head_block
-          range = (start..head_block)
-          if head_block != latest_block_number
-            for n in range
-            break if stop?
-
-            if (counter += 1) > max_blocks_per_node
-              reset_api
-              counter = 0
-            end
-
-            if !replay && range.size > RANGE_BEHIND_WARNING
-              # When the range is above RANGE_BEHIND_WARNING blocks, it's time
-              # to warn, unless we're replaying.
-
-              r = [*range]
-              index = r.index(n)
-              current_range = r[index..-1]
-
-              if current_range.size % RANGE_BEHIND_WARNING == 0
-                warning "Stream behind by #{current_range.size} blocks (about #{(current_range.size * 3) / 60.0} minutes)."
-              end
-            end
-
-            scoped_api, block_options = if use_condenser_namespace?
-              [api, n]
-            else
-              [block_api, {block_num: n}]
-            end
-
-            scoped_api.get_block(block_options) do |current_block, error|
+        catch :sequence do
+          ;
+          begin
+            head_block = database_api.get_dynamic_global_properties do |properties, error|
               if !!error
-                if error.message == 'Unable to acquire database lock'
-                  start = n
-                  timeout
-                  standby "Node was unable to acquire database lock, retrying ...", {
-                    and: {throw: :sequence}
-                  }
-                else
-                  standby "Node responded with: #{error.message || 'unknown error'}, retrying ...", {
-                    error: error,
-                    and: {throw: :sequence}
-                  }
-                end
-              end
-
-              current_block = current_block.block unless use_condenser_namespace?
-
-              if current_block.nil?
-                standby "Node responded with: empty block, retrying ...", {
-                  and: {throw: :sequence}
+                standby "Node responded with: #{error.message || 'unknown error'}, retrying ...", {
+                  error: error,
+                  and: { throw: :sequence }
                 }
               end
 
-              latest_block_number = n
-              return current_block, n if block.nil?
-              yield current_block, n, api
+              break if stop?
+
+              if properties.nil? || properties.head_block_number.nil?
+                # This can happen if a reverse proxy is acting up.
+                standby "A Bad block sequence after height: #{latest_block_number}", {
+                  and: { throw: :sequence }
+                }
+              end
+
+              case mode.to_sym
+              when :head then properties.head_block_number
+              when :irreversible then properties.last_irreversible_block_num
+              else ; raise StreamError, '"mode" has to be "head" or "irreversible"'
+              end
             end
 
-            start = head_block + 1
-            sleep block_production / range.size
-          end
-            puts "sleep_over #{block_production}"
-          end
-        rescue StreamError; raise
-        # rescue => e
-        #   warning "Unknown streaming error: #{e.inspect}, retrying ...  "
-        #   warning e
-        #   redo
-        end; end
+            if head_block == latest_block_number
+              # This can happen when there's a delay in block production.
+
+              if current_timeout > block_production * 6 * block_production_mult
+                standby "Stream has stalled severely ...", {
+                  and: { backoff: api, throw: :sequence }
+                }
+              elsif current_timeout > block_production * 3 * block_production_mult
+                warning "Stream has stalled ..."
+              end
+
+            elsif head_block < latest_block_number && block_production == BLOCK_PRODUCTION
+              # This can happen if a reverse proxy is acting up.
+              standby "Invalid block sequence at height: #{head_block}", {
+                and: {backoff: api, throw: :sequence}
+              }
+            end
+
+            reset_timeout
+            start ||= head_block
+            range = (start..head_block)
+            if head_block != latest_block_number
+              for n in range
+                break if stop?
+
+                if (counter += 1) > max_blocks_per_node
+                  reset_api
+                  counter = 0
+                end
+
+                if !replay && range.size > RANGE_BEHIND_WARNING
+                  # When the range is above RANGE_BEHIND_WARNING blocks, it's time
+                  # to warn, unless we're replaying.
+
+                  r = [*range]
+                  index = r.index(n)
+                  current_range = r[index..-1]
+
+                  if current_range.size % RANGE_BEHIND_WARNING == 0
+                    warning "Stream behind by #{current_range.size} blocks (about #{(current_range.size * 3) / 60.0} minutes)."
+                  end
+                end
+
+                scoped_api, block_options = if use_condenser_namespace?
+                                              [api, n]
+                                            else
+                                              [block_api, { block_num: n }]
+                                            end
+
+                scoped_api.get_block(block_options) do |current_block, error|
+                  if !!error
+                    if error.message == 'Unable to acquire database lock'
+                      start = n
+                      timeout
+                      standby "Node was unable to acquire database lock, retrying ...", {
+                        and: { throw: :sequence }
+                      }
+                    else
+                      standby "Node responded with: #{error.message || 'unknown error'}, retrying ...", {
+                        error: error,
+                        and: { throw: :sequence }
+                      }
+                    end
+                  end
+
+                  current_block = current_block.block unless use_condenser_namespace?
+
+                  if current_block.nil?
+                    standby "Node responded with: empty block, retrying ...", {
+                      and: { throw: :sequence }
+                    }
+                  end
+
+                  latest_block_number = n
+                  return current_block, n if block.nil?
+                  yield current_block, n, api
+                end
+
+                start = head_block + 1
+                sleep block_production / range.size
+              end
+            end
+          rescue StreamError;
+            raise
+            # rescue => e
+            #   warning "Unknown streaming error: #{e.inspect}, retrying ...  "
+            #   warning e
+            #   redo
+          end;
+        end
       end
     end
 
@@ -432,20 +443,22 @@ module Radiator
     # @private
     def method_params(method)
       case method
-      when :block_numbers then {head_block_number: nil}
-      when :blocks then {get_block: :head_block_number}
-      else; nil
+      when :block_numbers then { head_block_number: nil }
+      when :blocks then { get_block: :head_block_number }
+      else ; nil
       end
     end
 
     def database_api
       @database_api ||= case @chain
-      when :steem then Steem::DatabaseApi.new(url: @api.send(:uri).to_s)
-      when :hive then Hive::DatabaseApi.new(url: @api.send(:uri).to_s)
-      else; api
-      end
+                        when :steem then Steem::DatabaseApi.new(url: @api.send(:uri).to_s)
+                        when :hive then Hive::DatabaseApi.new(url: @api.send(:uri).to_s)
+                        else ; api
+                        end
     end
-  private
+
+    private
+
     def method_missing(m, *args, &block)
       super unless respond_to_missing?(m)
 
@@ -455,30 +468,30 @@ module Radiator
         break if stop?
 
         value = if (n = method_params(m)).nil?
-          key_value = database_api.get_dynamic_global_properties.result[m]
-        else
-          key = n.keys.first
-          if !!n[key]
-            r = database_api.get_dynamic_global_properties.result
-            key_value = param = r[n[key]]
-            result = nil
-            loop do
-              break if stop?
+                  key_value = database_api.get_dynamic_global_properties.result[m]
+                else
+                  key = n.keys.first
+                  if !!n[key]
+                    r = database_api.get_dynamic_global_properties.result
+                    key_value = param = r[n[key]]
+                    result = nil
+                    loop do
+                      break if stop?
 
-              response = api.send(key, param)
-              raise StreamError, JSON[response.error] if !!response.error
-              result = response.result
-              break if !!result
-              warning "#{key}: #{param} result missing, retrying with timeout: #{current_timeout} seconds"
-              reset_api
-              timeout
-            end
-            reset_timeout
-            result
-          else
-            key_value = database_api.get_dynamic_global_properties.result[key]
-          end
-        end
+                      response = api.send(key, param)
+                      raise StreamError, JSON[response.error] if !!response.error
+                      result = response.result
+                      break if !!result
+                      warning "#{key}: #{param} result missing, retrying with timeout: #{current_timeout} seconds"
+                      reset_api
+                      timeout
+                    end
+                    reset_timeout
+                    result
+                  else
+                    key_value = database_api.get_dynamic_global_properties.result[key]
+                  end
+                end
         unless @latest_values.include? key_value
           @latest_values << key_value
           if !!block
@@ -501,7 +514,6 @@ module Radiator
       @timeout *= 2
       reset_timeout if @timeout > MAX_TIMEOUT
       sleep @timeout || INITIAL_TIMEOUT
-      puts "timeout #{@timeout}"
       @timeout
     end
 
