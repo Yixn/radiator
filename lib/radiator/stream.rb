@@ -271,7 +271,7 @@ module Radiator
 
             if properties.nil? || properties.head_block_number.nil?
               # This can happen if a reverse proxy is acting up.
-              standby "Bad block sequence after height: #{latest_block_number}", {
+              standby "A Bad block sequence after height: #{latest_block_number}", {
                 and: {throw: :sequence}
               }
             end
@@ -364,7 +364,7 @@ module Radiator
 
             start = head_block + 1
             sleep block_production / range.size
-            puts "sleep_over"
+            puts "sleep_over #{block_production}"
           end
           end
         rescue StreamError; raise
