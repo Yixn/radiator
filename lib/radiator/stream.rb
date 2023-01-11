@@ -295,11 +295,6 @@ module Radiator
             end
 
             timeout and throw :sequence
-          elsif head_block < latest_block_number
-            # This can happen if a reverse proxy is acting up.
-            standby "Invalid block sequence at height: #{head_block}", {
-              and: {backoff: api, throw: :sequence}
-            }
           end
 
           reset_timeout
