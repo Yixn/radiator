@@ -21,7 +21,7 @@ module Radiator
     # blocks are available in 1.5 seconds.  However, we still keep our
     # expectations at 3 seconds.
     # @private
-    BLOCK_PRODUCTION = 3.0
+    BLOCK_PRODUCTION = 3
     
     # @private
     MAX_TIMEOUT = 80
@@ -246,9 +246,9 @@ module Radiator
     # @param max_blocks_per_node the number of blocks to read before trying a new node
     # @param block the block to execute for each result, optional.  Yields: |bk, num, api|
     # @return [::Hash]
-    def blocks(start = nil, mode = :irreversible, max_blocks_per_node = MAX_BLOCKS_PER_NODE, &block)
+    def blocks(start = nil, mode = :irreversible, max_blocks_per_node = MAX_BLOCKS_PER_NODE, block_production = BLOCK_PRODUCTION, &block)
       reset_api
-      
+      block_production_mult = 3.0 / block_production
       replay = !!start
       counter = 0
       latest_block_number = -1
@@ -284,12 +284,12 @@ module Radiator
           
           if head_block == latest_block_number
             # This can happen when there's a delay in block production.
-            
-            if current_timeout > BLOCK_PRODUCTION * 6
+
+            if current_timeout > block_production * 6 * block_production_mult
               standby "Stream has stalled severely ...", {
                 and: {backoff: api, throw: :sequence}
               }
-            elsif current_timeout > BLOCK_PRODUCTION * 3
+            elsif current_timeout > block_production * 3 * block_production_mult
               warning "Stream has stalled ..."
             end
             
@@ -304,8 +304,8 @@ module Radiator
           reset_timeout
           start ||= head_block
           range = (start..head_block)
-          
-          for n in range
+          if head_block != latest_block_number
+            for n in range
             break if stop?
 
             if (counter += 1) > max_blocks_per_node
@@ -362,7 +362,8 @@ module Radiator
             end
             
             start = head_block + 1
-            sleep BLOCK_PRODUCTION / range.size
+            sleep block_production / range.size
+          end
           end
         rescue StreamError; raise
         # rescue => e
