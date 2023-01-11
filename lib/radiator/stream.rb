@@ -252,7 +252,6 @@ module Radiator
     def blocks(start = nil, mode = :irreversible, max_blocks_per_node = MAX_BLOCKS_PER_NODE, block_production = BLOCK_PRODUCTION, &block)
       reset_api
       block_production_mult = 3.0 / block_production
-      puts block_production_mult
       replay = !!start
       counter = 0
       latest_block_number = -1
