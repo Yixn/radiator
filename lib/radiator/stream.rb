@@ -13,28 +13,28 @@ module Radiator
   #
   # More importantly, full blocks, transactions, and operations can be streamed.
   class Stream < Api
-    
+
     # @private
     INITIAL_TIMEOUT = 0.0200
-    
+
     # Note, even though block production is advertised at 3 seconds, often
     # blocks are available in 1.5 seconds.  However, we still keep our
     # expectations at 3 seconds.
     # @private
     BLOCK_PRODUCTION = 3
-    
+
     # @private
     MAX_TIMEOUT = 80
-    
+
     # @private
     MAX_BLOCKS_PER_NODE = 10000
-    
+
     RANGE_BEHIND_WARNING = 400
-    
+
     def initialize(options = {})
       super
     end
-    
+
     # Returns the latest operations from the blockchain.
     #
     #   stream = Radiator::Stream.new
@@ -133,17 +133,17 @@ module Radiator
     def operations(type = nil, start = nil, mode = :irreversible, options = {include_virtual: false}, &block)
       type = [type].flatten.compact.map(&:to_sym)
       include_virtual = !!options[:include_virtual]
-      
+
       if virtual_op_type?(type)
         include_virtual = true
       end
-      
+
       latest_block_number = -1
-      
+
       transactions(start, mode) do |transaction, trx_id, block_number|
         virtual_ops_collected = latest_block_number == block_number
         latest_block_number = block_number
-        
+
         ops = transaction.operations.map do |t, op|
           t = t.to_sym
           if type.size == 1 && type.first == t
@@ -152,7 +152,7 @@ module Radiator
             {t => op}
           end
         end.compact
-        
+
         if include_virtual && !virtual_ops_collected
           catch :pop_vops do; begin
             api.get_ops_in_block(block_number, true) do |vops, error|
@@ -162,10 +162,10 @@ module Radiator
                   and: {throw: :pop_vops}
                 }
               end
-              
+
               vops.each do |vtx|
                 next unless defined? vtx.op
-                
+
                 t = vtx.op.first.to_sym
                 op = vtx.op.last
                 if type.size == 1 && type.first == t
@@ -176,20 +176,20 @@ module Radiator
               end
             end
           end; end
-          
+
           virtual_ops_collected = true
         end
-        
+
         next if ops.none?
-        
+
         return ops unless !!block
-        
+
         ops.each do |op|
           yield op, trx_id, block_number, api
         end
       end
     end
-    
+
     # Returns the latest transactions from the blockchain.
     #
     #   stream = Radiator::Stream.new
@@ -207,17 +207,17 @@ module Radiator
       blocks(start, mode) do |b, block_number|
         next if (_transactions = b.transactions).nil?
         return _transactions unless !!block
-        
+
         _transactions.each_with_index do |transaction, index|
           trx_id = if !!b['transaction_ids']
             b['transaction_ids'][index]
           end
-          
+
           yield transaction, trx_id, block_number, api
         end
       end
     end
-    
+
     # Returns the latest blocks from the blockchain.
     #
     #   stream = Radiator::Stream.new
@@ -249,14 +249,15 @@ module Radiator
     def blocks(start = nil, mode = :irreversible, max_blocks_per_node = MAX_BLOCKS_PER_NODE, block_production = BLOCK_PRODUCTION, &block)
       reset_api
       block_production_mult = 3.0 / block_production
+      puts block_production_mult
       replay = !!start
       counter = 0
       latest_block_number = -1
       @api_options[:max_requests] = [max_blocks_per_node * 2, @api_options[:max_requests].to_i].max
-      
+
       loop do
         break if stop?
-        
+
         catch :sequence do; begin
           head_block = database_api.get_dynamic_global_properties do |properties, error|
             if !!error
@@ -265,23 +266,23 @@ module Radiator
                 and: {throw: :sequence}
               }
             end
-            
+
             break if stop?
-            
+
             if properties.nil? || properties.head_block_number.nil?
               # This can happen if a reverse proxy is acting up.
               standby "Bad block sequence after height: #{latest_block_number}", {
                 and: {throw: :sequence}
               }
             end
-                
+
             case mode.to_sym
             when :head then properties.head_block_number
             when :irreversible then properties.last_irreversible_block_num
             else; raise StreamError, '"mode" has to be "head" or "irreversible"'
             end
           end
-          
+
           if head_block == latest_block_number
             # This can happen when there's a delay in block production.
 
@@ -292,7 +293,7 @@ module Radiator
             elsif current_timeout > block_production * 3 * block_production_mult
               warning "Stream has stalled ..."
             end
-            
+
             timeout and throw :sequence
           elsif head_block < latest_block_number
             # This can happen if a reverse proxy is acting up.
@@ -300,7 +301,7 @@ module Radiator
               and: {backoff: api, throw: :sequence}
             }
           end
-          
+
           reset_timeout
           start ||= head_block
           range = (start..head_block)
@@ -312,26 +313,26 @@ module Radiator
               reset_api
               counter = 0
             end
-            
+
             if !replay && range.size > RANGE_BEHIND_WARNING
               # When the range is above RANGE_BEHIND_WARNING blocks, it's time
               # to warn, unless we're replaying.
-              
+
               r = [*range]
               index = r.index(n)
               current_range = r[index..-1]
-              
+
               if current_range.size % RANGE_BEHIND_WARNING == 0
                 warning "Stream behind by #{current_range.size} blocks (about #{(current_range.size * 3) / 60.0} minutes)."
               end
             end
-            
+
             scoped_api, block_options = if use_condenser_namespace?
               [api, n]
             else
               [block_api, {block_num: n}]
             end
-              
+
             scoped_api.get_block(block_options) do |current_block, error|
               if !!error
                 if error.message == 'Unable to acquire database lock'
@@ -347,22 +348,23 @@ module Radiator
                   }
                 end
               end
-              
+
               current_block = current_block.block unless use_condenser_namespace?
-              
+
               if current_block.nil?
                 standby "Node responded with: empty block, retrying ...", {
                   and: {throw: :sequence}
                 }
               end
-              
+
               latest_block_number = n
               return current_block, n if block.nil?
               yield current_block, n, api
             end
-            
+
             start = head_block + 1
             sleep block_production / range.size
+            puts "sleep_over"
           end
           end
         rescue StreamError; raise
@@ -373,18 +375,18 @@ module Radiator
         end; end
       end
     end
-    
+
     # Stops the persistant http connections.
     #
     def shutdown
       flappy = false
-      
+
       begin
         unless @api.nil?
           flappy = @api.send(:flappy?)
           @api.shutdown
         end
-        
+
         unless @block_api.nil?
           flappy = @block_api.send(:flappy?) unless flappy
           @block_api.shutdown
@@ -392,13 +394,13 @@ module Radiator
       rescue => e
         warning("Unable to shut down: #{e}")
       end
-      
+
       @api = nil
       @block_api = nil
       @database_api = nil if @api.nil? || @block_api.nil?
       GC.start
     end
-    
+
     # @private
     def method_names
       @method_names ||= [
@@ -432,7 +434,7 @@ module Radiator
         :blocks
       ].freeze
     end
-    
+
     # @private
     def method_params(method)
       case method
@@ -441,7 +443,7 @@ module Radiator
       else; nil
       end
     end
-    
+
     def database_api
       @database_api ||= case @chain
       when :steem then Steem::DatabaseApi.new(url: @api.send(:uri).to_s)
@@ -452,12 +454,12 @@ module Radiator
   private
     def method_missing(m, *args, &block)
       super unless respond_to_missing?(m)
-      
+
       @latest_values ||= []
       @latest_values.shift(5) if @latest_values.size > 20
       loop do
         break if stop?
-        
+
         value = if (n = method_params(m)).nil?
           key_value = database_api.get_dynamic_global_properties.result[m]
         else
@@ -468,7 +470,7 @@ module Radiator
             result = nil
             loop do
               break if stop?
-              
+
               response = api.send(key, param)
               raise StreamError, JSON[response.error] if !!response.error
               result = response.result
@@ -494,12 +496,12 @@ module Radiator
         sleep current_timeout
       end
     end
-    
+
     def reset_api
       shutdown
       !!api && !!block_api
     end
-    
+
     def timeout
       @timeout ||= INITIAL_TIMEOUT
       @timeout *= 2
@@ -507,31 +509,31 @@ module Radiator
       sleep @timeout || INITIAL_TIMEOUT
       @timeout
     end
-    
+
     def current_timeout
       @timeout || INITIAL_TIMEOUT
     end
-    
+
     def reset_timeout
       @timeout = nil
     end
-    
+
     def virtual_op_type?(type)
       type = [type].flatten.compact.map(&:to_sym)
-      
+
       (Radiator::OperationTypes::TYPES.keys && type).any?
     end
-    
+
     def stop?
       @api.nil? || @block_api.nil?
     end
-    
+
     def standby(message, options = {})
       error = options[:error]
       secondary = options[:and] || {}
       backoff_api = secondary[:backoff]
       throwable = secondary[:throw]
-      
+
       warning message
       warning error if !!error
       backoff_api.send :backoff if !!backoff_api
