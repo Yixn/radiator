@@ -299,7 +299,6 @@ module Radiator
 
         # Sign with the new library
         sig = @private_key.sign(digest_hex)
-        sig_der = sig.to_der
 
         # Convert DER signature to the format you need
         next unless canonical?(sig_der)
