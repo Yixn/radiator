@@ -292,21 +292,32 @@ module Radiator
       digest_hex = digest.freeze
 
       loop do
-        # Get both signature and recovery ID
-        sig_with_recovery = @private_key.sign_recoverable(digest_hex)
-        recovery_id = sig_with_recovery[64].unpack('C')[0]  # Last byte is recovery ID
-        sig = sig_with_recovery[0...64]  # First 64 bytes are R+S
+        # Get signature
+        sig = @private_key.sign(digest_hex)
 
-        next unless canonical?(sig)
+        # Extract R and S from DER format
+        der_bytes = sig.unpack('C*')
+        r_start = 4
+        r_bytes = der_bytes[r_start...(r_start + 32)]
+        s_start = r_start + 32 + 2
+        s_bytes = der_bytes[s_start...(s_start + 32)]
 
-        # Verify we can recover the public key
-        begin
-          recovered_pubkey = Bitcoin::Key.recover_compact(digest_hex, sig + [recovery_id].pack('C'))
-          if recovered_pubkey.bth == @private_key.pubkey
-            return sig_with_recovery
+        # Combine R and S
+        signature = r_bytes.pack('C*') + s_bytes.pack('C*')
+
+        next unless canonical?(signature)
+
+        # Try all possible recovery IDs
+        0.upto(3) do |recovery_id|
+          sig_with_recovery = signature + [recovery_id + 27 + 4].pack('C')
+          begin
+            public_key = Bitcoin::Key.recover_compact(digest_hex, sig_with_recovery)
+            if public_key.bth == @private_key.pubkey
+              return sig_with_recovery
+            end
+          rescue
+            next
           end
-        rescue
-          next
         end
       end
     end
