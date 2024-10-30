@@ -292,18 +292,21 @@ module Radiator
       digest_hex = digest.freeze
 
       loop do
-        # Create ECDSA signature
         sig = @private_key.sign(digest_hex)
         der_bytes = sig.unpack('C*')
 
-        # Extract R and S values
         r_start = 4
         r_bytes = der_bytes[r_start...(r_start + 32)]
         s_start = r_start + 32 + 2
         s_bytes = der_bytes[s_start...(s_start + 32)]
 
-        # Create compact signature
         signature = r_bytes.pack('C*') + s_bytes.pack('C*')
+
+        # Debug output
+        puts "Signature bytes: #{signature.unpack('C*').inspect}"
+        puts "First byte: #{signature.unpack('C*')[0]}"
+        puts "32nd byte: #{signature.unpack('C*')[32]}"
+
         next unless canonical?(signature)
 
         # Add recovery ID with recid format expected by HIVE
