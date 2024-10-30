@@ -289,6 +289,7 @@ module Radiator
 
     # May not find all non-canonicals, see: https://github.com/lian/bitcoin-ruby/issues/196
     def signature
+      public_key_hex = @private_key.pubkey.htb.bth # hex public key
       digest_hex = digest.freeze
       count = 0
 
@@ -296,13 +297,15 @@ module Radiator
         count += 1
         debug "#{count} attempts to find canonical signature" if count % 40 == 0
 
-        sig_compact = @private_key.sign_compact(digest_hex)
-        signature = sig_compact[1..-1] # Skip recovery ID byte
+        # Sign with the new library
+        sig = @private_key.sign(digest_hex)
+        sig_der = sig.to_der
 
-        next unless canonical?(signature)
+        # Convert DER signature to the format you need
+        next unless canonical?(sig_der)
 
-        # Add correct recovery ID for compressed key (27 + 4)
-        return signature + [31].pack('C')
+        # Verify the signature
+        return sig_der if @private_key.verify(sig, digest_hex)
       end
     end
 
