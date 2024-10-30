@@ -290,23 +290,27 @@ module Radiator
     # May not find all non-canonicals, see: https://github.com/lian/bitcoin-ruby/issues/196
     def signature
       digest_hex = digest.freeze
+      count = 0
 
       loop do
-        sig = @private_key.sign(digest_hex)
+        count += 1
+        debug "#{count} attempts to find canonical signature" if count % 40 == 0
 
-        # The sig returned is already in DER format
-        # Need to extract R and S and format for HIVE
-        sig_array = sig.unpack('C*')
-        len_r = sig_array[3]
-        r = sig_array[4...(len_r+4)].pack('C*')
-        len_s = sig_array[len_r + 5]
-        s = sig_array[(len_r + 6)...(len_r + 6 + len_s)].pack('C*')
+        # Use sign_compact to get signature with recovery ID
+        sig_compact = @private_key.sign_compact(digest_hex)
 
-        # Combine R and S
-        signature = r + s
+        # Extract the recovery ID and actual signature
+        rec_id = sig_compact[0].unpack('C')[0]
+        signature = sig_compact[1..-1]
 
         next unless canonical?(signature)
-        return signature + [27 + 4].pack('C') # Add recovery ID for compressed key
+
+        # Verify we can recover the correct public key
+        begin
+          return signature if rec_id == (27 + 4) # For compressed keys
+        rescue
+          next
+        end
       end
     end
 
