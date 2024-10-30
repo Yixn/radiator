@@ -48,7 +48,7 @@ module Radiator
       end
 
       if !!wif
-        @private_key = Bitcoin::Key.from_base58 wif
+        @private_key = Bitcoin::Base58.decode wif
       end
 
       @ref_block_num ||= nil
