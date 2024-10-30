@@ -292,29 +292,26 @@ module Radiator
       digest_hex = digest.freeze
 
       loop do
-        # Get signature
+        # Create ECDSA signature
         sig = @private_key.sign(digest_hex)
-
-        # Extract R and S from DER format
         der_bytes = sig.unpack('C*')
+
+        # Extract R and S values
         r_start = 4
         r_bytes = der_bytes[r_start...(r_start + 32)]
         s_start = r_start + 32 + 2
         s_bytes = der_bytes[s_start...(s_start + 32)]
 
-        # Combine R and S
+        # Create compact signature
         signature = r_bytes.pack('C*') + s_bytes.pack('C*')
-
         next unless canonical?(signature)
 
-        # Try all possible recovery IDs
-        0.upto(3) do |recovery_id|
-          sig_with_recovery = signature + [recovery_id + 27 + 4].pack('C')
+        # Add recovery ID with recid format expected by HIVE
+        [0, 1, 2, 3].each do |recid|
+          rec_sig = signature + [27 + recid + (@pubkey_compressed ? 4 : 0)].pack('C')
           begin
-            public_key = Bitcoin::Key.recover_compact(digest_hex, sig_with_recovery)
-            if public_key.bth == @private_key.pubkey
-              return sig_with_recovery
-            end
+            pub = Bitcoin::Key.new(nil, @private_key.pubkey)
+            return rec_sig if pub.verify(signature, digest_hex)
           rescue
             next
           end
