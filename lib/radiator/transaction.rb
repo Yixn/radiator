@@ -292,21 +292,22 @@ module Radiator
       digest_hex = digest.freeze
 
       loop do
-        # Sign the digest directly
-        der_sig = @private_key.sign(digest_hex)
+        # Get both signature and recovery ID
+        sig_with_recovery = @private_key.sign_recoverable(digest_hex)
+        recovery_id = sig_with_recovery[64].unpack('C')[0]  # Last byte is recovery ID
+        sig = sig_with_recovery[0...64]  # First 64 bytes are R+S
 
-        # Convert DER to R + S format that the blockchain expects
-        # DER format: 30 44 02 20 [R] 02 20 [S]
-        der_bytes = der_sig.unpack('C*')
-        r_start = 4  # Skip 30 44 02 20
-        r_bytes = der_bytes[r_start...(r_start + 32)]
-        s_start = r_start + 32 + 2  # Skip 02 20
-        s_bytes = der_bytes[s_start...(s_start + 32)]
+        next unless canonical?(sig)
 
-        # Combine R and S into final signature
-        sig = r_bytes.pack('C*') + s_bytes.pack('C*')
-
-        return sig if canonical?(sig)
+        # Verify we can recover the public key
+        begin
+          recovered_pubkey = Bitcoin::Key.recover_compact(digest_hex, sig + [recovery_id].pack('C'))
+          if recovered_pubkey.bth == @private_key.pubkey
+            return sig_with_recovery
+          end
+        rescue
+          next
+        end
       end
     end
 
