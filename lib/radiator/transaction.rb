@@ -301,10 +301,10 @@ module Radiator
         sig = @private_key.sign(digest_hex)
 
         # Convert DER signature to the format you need
-        next unless canonical?(sig_der)
+        next unless canonical?(sig)
 
         # Verify the signature
-        return sig_der if @private_key.verify(sig, digest_hex)
+        return sig if @private_key.verify(sig, digest_hex)
       end
     end
 
