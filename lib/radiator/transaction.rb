@@ -289,7 +289,6 @@ module Radiator
 
     # May not find all non-canonicals, see: https://github.com/lian/bitcoin-ruby/issues/196
     def signature
-      public_key_hex = @private_key.pubkey.htb.bth # hex public key
       digest_hex = digest.freeze
       count = 0
 
@@ -297,27 +296,25 @@ module Radiator
         count += 1
         debug "#{count} attempts to find canonical signature" if count % 40 == 0
 
-        # Sign with the new library
+        # Sign the digest directly
         sig = @private_key.sign(digest_hex)
-        sig_der = sig.to_der
 
-        # Convert DER signature to the format you need
-        next unless canonical?(sig_der)
+        next unless canonical?(sig)
 
         # Verify the signature
-        return sig_der if @private_key.verify(sig, digest_hex)
+        return sig if @private_key.verify(sig, digest_hex)
       end
     end
     
     # See: https://github.com/steemit/steem/issues/1944
     def canonical?(sig)
-      sig = sig.unpack('C*')
+      bytes = sig.unpack('C*')
 
       !(
-        ((sig[0] & 0x80 ) != 0) || ( sig[0] == 0 ) ||
-        ((sig[1] & 0x80 ) != 0) ||
-        ((sig[32] & 0x80 ) != 0) || ( sig[32] == 0 ) ||
-        ((sig[33] & 0x80 ) != 0)
+        ((bytes[0] & 0x80 ) != 0) || ( bytes[0] == 0 ) ||
+          ((bytes[1] & 0x80 ) != 0) ||
+          ((bytes[32] & 0x80 ) != 0) || ( bytes[32] == 0 ) ||
+          ((bytes[33] & 0x80 ) != 0)
       )
     end
 
