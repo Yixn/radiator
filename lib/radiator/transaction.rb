@@ -287,7 +287,7 @@ module Radiator
       Digest::SHA256.digest(to_bytes)
     end
 
-    def signature_old
+    def signature
       public_key_hex = @private_key.pub
       ec = Bitcoin::OpenSSL_EC
       digest_hex = digest.freeze
@@ -305,7 +305,7 @@ module Radiator
     end
 
     # May not find all non-canonicals, see: https://github.com/lian/bitcoin-ruby/issues/196
-    def signature
+    def signature_new
       digest_hex = digest.freeze
       count = 0
 
