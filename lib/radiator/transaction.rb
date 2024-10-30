@@ -296,21 +296,13 @@ module Radiator
         count += 1
         debug "#{count} attempts to find canonical signature" if count % 40 == 0
 
-        # Use sign_compact to get signature with recovery ID
         sig_compact = @private_key.sign_compact(digest_hex)
-
-        # Extract the recovery ID and actual signature
-        rec_id = sig_compact[0].unpack('C')[0]
-        signature = sig_compact[1..-1]
+        signature = sig_compact[1..-1] # Skip recovery ID byte
 
         next unless canonical?(signature)
 
-        # Verify we can recover the correct public key
-        begin
-          return signature if rec_id == (27 + 4) # For compressed keys
-        rescue
-          next
-        end
+        # Add correct recovery ID for compressed key (27 + 4)
+        return signature + [31].pack('C')
       end
     end
 
