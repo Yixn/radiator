@@ -104,7 +104,7 @@ module Radiator
       if broadcast
         loop do
           response = broadcast_payload(payload)
-
+          @url = @api.get_url
           if !!response.error
             parser = ErrorParser.new(response)
 
@@ -317,7 +317,6 @@ module Radiator
         @private_key = Bitcoin::Key.new(priv_key: @private_key.priv_key, key_type: Bitcoin::Key::TYPES[:uncompressed])
         sig_compact = @private_key.sign_compact(digest_hex)
 
-        next unless canonical?(sig_compact)
         return sig_compact
       end
     end

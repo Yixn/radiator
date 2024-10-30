@@ -237,7 +237,10 @@ module Radiator
       api.api_name = api_name
       api.new(options) rescue nil
     end
-    
+
+    def get_url
+      @url
+    end
     # Cretes a new instance of Radiator::Api.
     #
     # Examples:
