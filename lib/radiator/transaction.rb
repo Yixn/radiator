@@ -298,6 +298,7 @@ module Radiator
 
         # Sign the digest directly
         sig = @private_key.sign(digest_hex)
+        puts "Raw signature: #{sig.unpack('H*').first}"
 
         next unless canonical?(sig)
 
