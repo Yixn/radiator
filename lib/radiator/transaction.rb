@@ -9,6 +9,11 @@ module Radiator
     include ChainConfig
     include Utils
 
+
+    def get_url
+      @url
+    end
+
     VALID_OPTIONS = %w(
       wif private_key ref_block_num ref_block_prefix expiration
       chain use_condenser_namespace
@@ -98,9 +103,6 @@ module Radiator
       end
     end
 
-    def get_url
-      @url
-    end
 
     def process(broadcast = false)
       prepare
