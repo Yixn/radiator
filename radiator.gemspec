@@ -40,7 +40,7 @@ Gem::Specification.new do |spec|
   # hashie is floating because we prefer 4.1 or higher, but the official
   # steem-ruby-0.9.4 gem is stuck on hashie-3.5.7.
   spec.add_dependency('hashie', '>= 3.5')
-  spec.add_dependency('bitcoinrb', '0.0.20') # (was 0.0.19)
+  spec.add_dependency('bitcoinrb') # (was 0.0.19)
   spec.add_dependency('ffi', '~> 1.9', '>= 1.9.18') # (was 1.11.2)
   spec.add_dependency('awesome_print', '~> 1.7', '>= 1.7.0')
 end
