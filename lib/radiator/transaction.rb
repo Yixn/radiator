@@ -293,43 +293,32 @@ module Radiator
 
       loop do
         sig = @private_key.sign(digest_hex)
-        der_bytes = sig.unpack('C*')
 
-        r_start = 4
-        r_bytes = der_bytes[r_start...(r_start + 32)]
-        s_start = r_start + 32 + 2
-        s_bytes = der_bytes[s_start...(s_start + 32)]
+        # The sig returned is already in DER format
+        # Need to extract R and S and format for HIVE
+        sig_array = sig.unpack('C*')
+        len_r = sig_array[3]
+        r = sig_array[4...(len_r+4)].pack('C*')
+        len_s = sig_array[len_r + 5]
+        s = sig_array[(len_r + 6)...(len_r + 6 + len_s)].pack('C*')
 
-        signature = r_bytes.pack('C*') + s_bytes.pack('C*')
-
-        # Debug output
-        puts "Signature bytes: #{signature.unpack('C*').inspect}"
-        puts "First byte: #{signature.unpack('C*')[0]}"
-        puts "32nd byte: #{signature.unpack('C*')[32]}"
+        # Combine R and S
+        signature = r + s
 
         next unless canonical?(signature)
-
-        # Add recovery ID with recid format expected by HIVE
-        [0, 1, 2, 3].each do |recid|
-          rec_sig = signature + [27 + recid + (@pubkey_compressed ? 4 : 0)].pack('C')
-          begin
-            pub = Bitcoin::Key.new(nil, @private_key.pubkey)
-            return rec_sig if pub.verify(signature, digest_hex)
-          rescue
-            next
-          end
-        end
+        return signature + [27 + 4].pack('C') # Add recovery ID for compressed key
       end
     end
 
+    # See: https://github.com/steemit/steem/issues/1944
     def canonical?(sig)
-      bytes = sig.unpack('C*')
+      sig = sig.unpack('C*')
 
       !(
-        ((bytes[0] & 0x80 ) != 0) || ( bytes[0] == 0 ) ||
-          ((bytes[1] & 0x80 ) != 0) ||
-          ((bytes[32] & 0x80 ) != 0) || ( bytes[32] == 0 ) ||
-          ((bytes[33] & 0x80 ) != 0)
+        ((sig[0] & 0x80 ) != 0) || ( sig[0] == 0 ) ||
+        ((sig[1] & 0x80 ) != 0) ||
+        ((sig[32] & 0x80 ) != 0) || ( sig[32] == 0 ) ||
+        ((sig[33] & 0x80 ) != 0)
       )
     end
 
