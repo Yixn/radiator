@@ -306,28 +306,26 @@ module Radiator
 
     # May not find all non-canonicals, see: https://github.com/lian/bitcoin-ruby/issues/196
     def signature
-      public_key_hex = @private_key.pubkey
       digest_hex = digest.freeze
       count = 0
 
       loop do
         count += 1
         debug "#{count} attempts to find canonical signature" if count % 40 == 0
-        sig = @private_key.sign_compact(digest_hex)
 
-        # Extract recovery ID and signature
-        rec_id = sig[0].unpack1('C')
-        signature = sig[1..-1]
+        # Get compact signature (65 bytes: [recovery_id][r][s])
+        sig_compact = @private_key.sign_compact(digest_hex)
 
-        # Try to recover the public key
+        next unless canonical?(sig_compact)
+
+        # Verify our signature
         begin
-          recovered_key = Bitcoin::Key.recover_compact(digest_hex, sig)
-          next if recovered_key.pubkey != public_key_hex
+          recovered_key = Bitcoin::Key.recover_compact(digest_hex, sig_compact)
+          next if recovered_key.pubkey != @private_key.pubkey
+          return sig_compact
         rescue
           next
         end
-
-        return signature if canonical?(signature)
       end
     end
 
@@ -337,9 +335,9 @@ module Radiator
 
       !(
         ((sig[0] & 0x80 ) != 0) || ( sig[0] == 0 ) ||
-        ((sig[1] & 0x80 ) != 0) ||
-        ((sig[32] & 0x80 ) != 0) || ( sig[32] == 0 ) ||
-        ((sig[33] & 0x80 ) != 0)
+          ((sig[1] & 0x80 ) != 0) ||
+          ((sig[32] & 0x80 ) != 0) || ( sig[32] == 0 ) ||
+          ((sig[33] & 0x80 ) != 0)
       )
     end
 
