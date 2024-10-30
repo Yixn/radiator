@@ -98,6 +98,10 @@ module Radiator
       end
     end
 
+    def get_url
+      @url
+    end
+
     def process(broadcast = false)
       prepare
 
