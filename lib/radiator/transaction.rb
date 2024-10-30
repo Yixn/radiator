@@ -288,7 +288,7 @@ module Radiator
     end
 
     def signature
-      public_key_hex = @private_key.pub
+      public_key_hex = @private_key.pubkey
       ec = Bitcoin::OpenSSL_EC
       digest_hex = digest.freeze
       count = 0
