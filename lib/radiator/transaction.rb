@@ -287,24 +287,47 @@ module Radiator
       Digest::SHA256.digest(to_bytes)
     end
 
-    # May not find all non-canonicals, see: https://github.com/lian/bitcoin-ruby/issues/196
-    def signature
-      public_key_hex = @private_key.pubkey.htb.bth # hex public key
+    def signature_old
+      public_key_hex = @private_key.pub
+      ec = Bitcoin::OpenSSL_EC
       digest_hex = digest.freeze
       count = 0
 
       loop do
         count += 1
         debug "#{count} attempts to find canonical signature" if count % 40 == 0
+        sig = ec.sign_compact(digest_hex, @private_key.priv, public_key_hex, false)
 
-        # Sign with the new library
-        sig = @private_key.sign(digest_hex)
+        next if public_key_hex != ec.recover_compact(digest_hex, sig)
 
-        # Convert DER signature to the format you need
-        next unless canonical?(sig)
+        return sig if canonical? sig
+      end
+    end
 
-        # Verify the signature
-        return sig if @private_key.verify(sig, digest_hex)
+    # May not find all non-canonicals, see: https://github.com/lian/bitcoin-ruby/issues/196
+    def signature
+      public_key_hex = @private_key.pubkey
+      digest_hex = digest.freeze
+      count = 0
+
+      loop do
+        count += 1
+        debug "#{count} attempts to find canonical signature" if count % 40 == 0
+        sig = @private_key.sign_compact(digest_hex)
+
+        # Extract recovery ID and signature
+        rec_id = sig[0].unpack1('C')
+        signature = sig[1..-1]
+
+        # Try to recover the public key
+        begin
+          recovered_key = Bitcoin::Key.recover_compact(digest_hex, sig)
+          next if recovered_key.pubkey != public_key_hex
+        rescue
+          next
+        end
+
+        return signature if canonical?(signature)
       end
     end
 
