@@ -289,19 +289,23 @@ module Radiator
 
     # May not find all non-canonicals, see: https://github.com/lian/bitcoin-ruby/issues/196
     def signature
-      public_key_hex = @private_key.pubkey
-      ec = Bitcoin::OpenSSL_EC
+      public_key_hex = @private_key.pubkey.htb.bth # hex public key
       digest_hex = digest.freeze
       count = 0
 
       loop do
         count += 1
         debug "#{count} attempts to find canonical signature" if count % 40 == 0
-        sig = ec.sign_compact(digest_hex, @private_key.priv, public_key_hex, false)
 
-        next if public_key_hex != ec.recover_compact(digest_hex, sig)
+        # Sign with the new library
+        sig = @private_key.sign(digest_hex)
+        sig_der = sig.to_der
 
-        return sig if canonical? sig
+        # Convert DER signature to the format you need
+        next unless canonical?(sig_der)
+
+        # Verify the signature
+        return sig_der if @private_key.verify(sig, digest_hex)
       end
     end
     
