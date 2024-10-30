@@ -290,24 +290,26 @@ module Radiator
     # May not find all non-canonicals, see: https://github.com/lian/bitcoin-ruby/issues/196
     def signature
       digest_hex = digest.freeze
-      count = 0
 
       loop do
-        count += 1
-        debug "#{count} attempts to find canonical signature" if count % 40 == 0
-
         # Sign the digest directly
-        sig = @private_key.sign(digest_hex)
-        puts "Raw signature: #{sig.unpack('H*').first}"
+        der_sig = @private_key.sign(digest_hex)
 
-        next unless canonical?(sig)
+        # Convert DER to R + S format that the blockchain expects
+        # DER format: 30 44 02 20 [R] 02 20 [S]
+        der_bytes = der_sig.unpack('C*')
+        r_start = 4  # Skip 30 44 02 20
+        r_bytes = der_bytes[r_start...(r_start + 32)]
+        s_start = r_start + 32 + 2  # Skip 02 20
+        s_bytes = der_bytes[s_start...(s_start + 32)]
 
-        # Verify the signature
-        return sig if @private_key.verify(sig, digest_hex)
+        # Combine R and S into final signature
+        sig = r_bytes.pack('C*') + s_bytes.pack('C*')
+
+        return sig if canonical?(sig)
       end
     end
-    
-    # See: https://github.com/steemit/steem/issues/1944
+
     def canonical?(sig)
       bytes = sig.unpack('C*')
 
